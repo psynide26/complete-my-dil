@@ -9,124 +9,66 @@ canvas.height = window.innerHeight;
 let previewMode = true;
 let gameOver = false;
 let gameWon = false;
-let merging = false;
 let zoom = 1;
 
 let she = { 
-    x: 120, 
+    x: 200, 
     y: canvas.height/2, 
-    size: 95 
+    size: 45 
 };
 
 let you = {
     x: canvas.width - 250,
     y: canvas.height/2,
-    size: 110
+    size: 55
 };
 
 let obstacles = [];
-let petals = [];
+let speed = 2.2; // world speed
+let moveUp = false;
+let moveDown = false;
 
-let speed = 1.4; // slower romantic speed
-
-// 🌸 Petals
-function createPetals(){
-    petals=[];
-    for(let i=0;i<120;i++){
-        petals.push({
-            x:Math.random()*canvas.width,
-            y:Math.random()*canvas.height,
-            size:3+Math.random()*6,
-            speed:0.2+Math.random()*0.4
-        });
-    }
-}
-
-// 🌹 Obstacles
+// 🎯 Create obstacles
 function createObstacles(){
     obstacles=[];
-    for(let i=0;i<18;i++){
+    for(let i=0;i<15;i++){
         obstacles.push({
-            x:400 + i*300,
-            y:Math.random()*(canvas.height-200),
-            size:120,
-            type:["rose","chocolate","broken"][Math.floor(Math.random()*3)]
+            x: canvas.width + i*400,
+            y: 150 + Math.random()*(canvas.height-300),
+            size: 50
         });
     }
 }
 
-// ❤️ Left Heart (SHE)
-function drawLeftHeart(x,y,size,color){
-    ctx.fillStyle=color;
-    ctx.beginPath();
-    ctx.moveTo(x,y);
-    ctx.bezierCurveTo(x-size/2,y-size/2,x-size,y+size/3,x,y+size);
-    ctx.lineTo(x,y);
-    ctx.fill();
-}
-
-// ❤️ Right Heart (YOU)
-function drawRightHeart(x,y,size,color,glow=0){
+// ❤️ Draw heart (simple circle style for clean collision)
+function drawHeart(x,y,radius,color,glow=0){
     ctx.shadowColor="#ff4d88";
     ctx.shadowBlur=glow;
     ctx.fillStyle=color;
     ctx.beginPath();
-    ctx.moveTo(x,y);
-    ctx.bezierCurveTo(x+size/2,y-size/2,x+size,y+size/3,x,y+size);
-    ctx.lineTo(x,y);
+    ctx.arc(x,y,radius,0,Math.PI*2);
     ctx.fill();
     ctx.shadowBlur=0;
 }
 
-// 🍫 Obstacles
 function drawObstacle(o){
-    if(o.type==="rose"){
-        ctx.fillStyle="#8B0000";
-        ctx.beginPath();
-        ctx.arc(o.x,o.y,o.size/2,0,Math.PI*2);
-        ctx.fill();
-    }
-    if(o.type==="chocolate"){
-        ctx.fillStyle="#5C3317";
-        ctx.fillRect(o.x-o.size/2,o.y-o.size/2,o.size,o.size);
-    }
-    if(o.type==="broken"){
-        ctx.fillStyle="#ff4d88";
-        ctx.beginPath();
-        ctx.moveTo(o.x,o.y);
-        ctx.lineTo(o.x-50,o.y+90);
-        ctx.lineTo(o.x,o.y+130);
-        ctx.lineTo(o.x+50,o.y+90);
-        ctx.closePath();
-        ctx.fill();
-    }
+    ctx.fillStyle="#8B0000";
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.size,0,Math.PI*2);
+    ctx.fill();
 }
 
 function draw(){
     ctx.setTransform(zoom,0,0,zoom,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // petals
-    petals.forEach(p=>{
-        ctx.fillStyle="#ffc0cb";
-        ctx.beginPath();
-        ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-        ctx.fill();
-    });
-
     obstacles.forEach(drawObstacle);
 
     let distance = you.x - she.x;
-    let glow = Math.max(0, 300 - distance) * 0.4;
+    let glow = Math.max(0, 250 - distance) * 0.4;
 
-    drawLeftHeart(she.x, she.y, she.size, "#ff4d88");
-    drawRightHeart(
-        you.x,
-        you.y + Math.sin(Date.now()/700)*10,
-        you.size,
-        "#ff3366",
-        glow
-    );
+    drawHeart(she.x,she.y,she.size,"#ff4d88");
+    drawHeart(you.x,you.y,you.size,"#ff3366",glow);
 }
 
 function update(){
@@ -134,60 +76,49 @@ function update(){
     if(previewMode || gameOver) return;
 
     if(gameWon){
-        if(zoom < 1.8){
-            zoom += 0.003; // cinematic zoom
+        if(zoom < 1.6){
+            zoom += 0.002;
         }
         return;
     }
 
-    // SHE MOVES
-    she.x += speed;
+    // SHE vertical control
+    if(moveUp && she.y > 60) she.y -= 4;
+    if(moveDown && she.y < canvas.height-60) she.y += 4;
 
-    // obstacles slight movement
+    // Move obstacles toward her
     obstacles.forEach(o=>{
-        o.y += Math.sin(Date.now()/800 + o.x) * 0.6;
+        o.x -= speed;
 
-        if(
-            she.x < o.x + o.size/2 &&
-            she.x + she.size > o.x - o.size/2 &&
-            she.y < o.y + o.size/2 &&
-            she.y + she.size > o.y - o.size/2
-        ){
-            showHitScreen();
+        // Proper circle collision
+        let dx = she.x - o.x;
+        let dy = she.y - o.y;
+        let distance = Math.sqrt(dx*dx + dy*dy);
+
+        if(distance < she.size + o.size){
+            showRetry();
         }
     });
 
-    if(she.x >= you.x - she.size){
-        startMerge();
+    // Check win
+    if(she.x >= you.x - 40){
+        winGame();
     }
 }
 
-function startMerge(){
-    merging = true;
-
-    let mergeInterval = setInterval(()=>{
-        she.x += 2;
-        if(she.x >= you.x){
-            clearInterval(mergeInterval);
-            winGame();
-        }
-    },16);
-}
-
-function showHitScreen(){
+function showRetry(){
     gameOver = true;
     document.getElementById("winScreen").classList.remove("hidden");
-    document.querySelector("#winScreen h2").innerText="She Faced Distractions 💔";
-    document.querySelector("#winScreen p").innerText="But she will always find her way back to you.";
+    document.querySelector("#winScreen h2").innerText="Almost There ❤️";
+    document.querySelector("#winScreen p").innerText="Love just needs one more try 💕";
 }
 
 function winGame(){
     gameWon = true;
     document.getElementById("winScreen").classList.remove("hidden");
     document.querySelector("#winScreen h2").innerText="Happy Valentine's Day ❤️";
-    document.querySelector("#winScreen p").innerText="She fought through everything… and chose you.";
+    document.querySelector("#winScreen p").innerText="She chose you. Always.";
 
-    // soft side fireworks
     confetti({
         particleCount:50,
         spread:60,
@@ -214,14 +145,24 @@ document.getElementById("startBtn").onclick=function(){
 
 window.restartGame=function(){
     document.getElementById("winScreen").classList.add("hidden");
-    she.x=120;
-    zoom=1;
+    she.y = canvas.height/2;
+    obstacles.forEach((o,i)=> o.x = canvas.width + i*400);
     gameOver=false;
     gameWon=false;
+    zoom=1;
     previewMode=false;
 };
 
-createPetals();
+// Keyboard controls
+document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowUp") moveUp=true;
+    if(e.key==="ArrowDown") moveDown=true;
+});
+document.addEventListener("keyup",e=>{
+    if(e.key==="ArrowUp") moveUp=false;
+    if(e.key==="ArrowDown") moveDown=false;
+});
+
 createObstacles();
 loop();
 
