@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Complete My Dil ❤️</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="startScreen">
+    <h1>Complete My Dil ❤️</h1>
+    <p>Hey Wifey… I’m here waiting for you 💗</p>
+    <button id="startBtn">Tap To Start 💕</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="winScreen" class="hidden">
+    <div class="popup">
+        <h2>Happy Valentine's Day Wifey ❤️</h2>
+        <p>You complete my heart. Always have. Always will.</p>
+        <button onclick="restartGame()">Play Again 💖</button>
+    </div>
+</div>
+
+<audio id="bgMusic" src="music.mp3"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script src="game.js"></script>
+
+</body>
+</html>
