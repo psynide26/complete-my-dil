@@ -12,13 +12,13 @@ let gameWon = false;
 let zoom = 1;
 
 let she = { 
-    x: canvas.width * 0.2, 
+    x: canvas.width * 0.15, 
     y: canvas.height/2, 
     size: 90 
 };
 
 let you = {
-    x: canvas.width * 0.8,
+    x: canvas.width * 0.85,
     y: canvas.height/2,
     size: 110
 };
@@ -26,7 +26,7 @@ let you = {
 let obstacles = [];
 let petals = [];
 
-let speed = 1.1; // slower smoother pace
+let speed = 3; // horizontal movement speed
 let moveUp = false;
 let moveDown = false;
 
@@ -38,7 +38,8 @@ function createPetals(){
             x:Math.random()*canvas.width*2,
             y:Math.random()*canvas.height,
             size:3+Math.random()*5,
-            speed:0.2+Math.random()*0.3
+            speed:0.2+Math.random()*0.3,
+            drift: Math.random()*0.5 - 0.25
         });
     }
 }
@@ -46,34 +47,29 @@ function createPetals(){
 // ================= CREATE OBSTACLES =================
 function createObstacles(){
     obstacles=[];
-    let gap = 400;
-    for(let i=0;i<18;i++){
+    let gap = 350;
+    let startX = canvas.width * 0.25;
+    let endX = canvas.width * 0.80;
+    let totalDistance = endX - startX;
+    let numObstacles = Math.floor(totalDistance / gap);
+    
+    const emojiList = ["🌹", "🌵", "🍫", "💔", "✨", "🥀", "🔥", "💐"];
+    
+    for(let i=0; i<numObstacles; i++){
         obstacles.push({
-            x: canvas.width + i * gap + Math.random()*200,
-            y: 150 + Math.random()*(canvas.height-300),
-            size: 80,
-            type: ["🌹","🌵","🍫","💔","✨"][Math.floor(Math.random()*5)]
+            x: startX + i * gap + Math.random()*100,
+            y: 100 + Math.random()*(canvas.height-200),
+            size: 70,
+            emoji: emojiList[Math.floor(Math.random()*emojiList.length)]
         });
     }
 }
 
-function drawTextObstacle(o){
-    ctx.font = `${o.size}px serif`;
+function drawEmojiObstacle(o){
+    ctx.font = `${o.size}px Arial`;
     ctx.textAlign = "center";
-
-    if(o.type === "🌹"){
-        ctx.fillStyle = "#c4001d";
-    } else if(o.type === "🌵"){
-        ctx.fillStyle = "#006400";
-    } else if(o.type === "🍫"){
-        ctx.fillStyle = "#5C3317";
-    } else if(o.type === "💔"){
-        ctx.fillStyle = "#ff4d88";
-    } else {
-        ctx.fillStyle = "#ff99bb";
-    }
-
-    ctx.fillText(o.type, o.x, o.y);
+    ctx.textBaseline = "middle";
+    ctx.fillText(o.emoji, o.x, o.y);
 }
 
 // ================= HEART DRAWING =================
@@ -103,23 +99,31 @@ function draw(){
     ctx.setTransform(zoom,0,0,zoom,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
+    // Background gradient
+    let gradient = ctx.createLinearGradient(0,0,0,canvas.height);
+    gradient.addColorStop(0,"#ffe0e8");
+    gradient.addColorStop(1,"#ffb3c6");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
     // Petals
     petals.forEach(p=>{
-        ctx.fillStyle="#ffc0cb";
+        ctx.fillStyle="rgba(255, 192, 203, 0.7)";
         ctx.beginPath();
         ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
         ctx.fill();
     });
 
-    obstacles.forEach(drawTextObstacle);
+    // Draw obstacles
+    obstacles.forEach(drawEmojiObstacle);
 
+    // Calculate glow based on distance
     let distance = you.x - she.x;
     let glow = Math.max(0, 250 - distance) * 0.4;
 
+    // Draw hearts
     drawLeftHeart(she.x,she.y,she.size,"#ff4d88");
-    drawRightHeart(
-        you.x,you.y,you.size,"#ff3366",glow
-    );
+    drawRightHeart(you.x,you.y,you.size,"#ff3366",glow);
 }
 
 // ================= UPDATE =================
@@ -134,26 +138,38 @@ function update(){
         return;
     }
 
-    // Vertical movement
-    if(moveUp && she.y > she.size) she.y -= 4;
-    if(moveDown && she.y < canvas.height - she.size) she.y += 4;
+    // Petals animation
+    petals.forEach(p=>{
+        p.y += p.speed;
+        p.x += p.drift;
+        if(p.y > canvas.height){
+            p.y = -10;
+            p.x = Math.random()*canvas.width;
+        }
+    });
 
-    // Move obstacles toward her
+    // Vertical movement for the left heart
+    if(moveUp && she.y > she.size) she.y -= 5;
+    if(moveDown && she.y < canvas.height - she.size) she.y += 5;
+
+    // Move the left heart to the right
+    if(she.x < you.x - 100){
+        she.x += speed;
+    }
+
+    // Collision detection with obstacles
     obstacles.forEach(o=>{
-        o.x -= speed;
-
-        // circle vs zone collision
         let dx = she.x - o.x;
         let dy = she.y - o.y;
         let dist = Math.sqrt(dx*dx + dy*dy);
 
-        if(dist < she.size/1.8 + o.size/1.8){
+        if(dist < she.size/1.5 + o.size/2.5){
             showRetry();
         }
     });
 
-    // Win condition
-    if(obstacles.length>0 && obstacles[obstacles.length-1].x < you.x - 50){
+    // Win condition - when she reaches close to him
+    if(she.x >= you.x - 120){
         winGame();
     }
 }
@@ -173,16 +189,19 @@ function winGame(){
     document.querySelector("#winScreen h2").innerText="💖 Happy Valentine's Day!";
     document.querySelector("#winScreen p").innerText="She finally reached her love!";
 
-    confetti({
-        particleCount:60,
-        spread:70,
-        origin:{x:0,y:0.8}
-    });
-    confetti({
-        particleCount:60,
-        spread:70,
-        origin:{x:1,y:0.8}
-    });
+    // Confetti if available
+    if(typeof confetti !== 'undefined'){
+        confetti({
+            particleCount:60,
+            spread:70,
+            origin:{x:0,y:0.8}
+        });
+        confetti({
+            particleCount:60,
+            spread:70,
+            origin:{x:1,y:0.8}
+        });
+    }
 }
 
 // ================= GAME LOOP =================
@@ -197,7 +216,10 @@ document.getElementById("startBtn").onclick=function(){
     document.getElementById("startScreen").style.display="none";
     previewMode = true;
 
-    document.getElementById("bgMusic").play().catch(()=>{});
+    let bgMusic = document.getElementById("bgMusic");
+    if(bgMusic){
+        bgMusic.play().catch(()=>{});
+    }
 
     setTimeout(()=>{
         previewMode = false;
@@ -206,33 +228,49 @@ document.getElementById("startBtn").onclick=function(){
 
 // ================= CONTROLS =================
 canvas.addEventListener("mousemove",e=>{
-    if(!previewMode){
-        if(e.clientY < she.y) moveUp=true, moveDown=false;
-        else moveDown=true, moveUp=false;
+    if(!previewMode && !gameOver && !gameWon){
+        if(e.clientY < she.y) {
+            moveUp=true; 
+            moveDown=false;
+        } else {
+            moveDown=true; 
+            moveUp=false;
+        }
     }
 });
 
 canvas.addEventListener("touchmove",e=>{
     e.preventDefault();
-    if(!previewMode){
+    if(!previewMode && !gameOver && !gameWon){
         let touch = e.touches[0];
-        if(touch.clientY < she.y) moveUp=true, moveDown=false;
-        else moveDown=true, moveUp=false;
+        if(touch.clientY < she.y) {
+            moveUp=true; 
+            moveDown=false;
+        } else {
+            moveDown=true; 
+            moveUp=false;
+        }
     }
 },{passive:false});
 
 document.addEventListener("mouseup",()=>{
     moveUp=false; moveDown=false;
 });
+
 document.addEventListener("touchend",()=>{
+    moveUp=false; moveDown=false;
+});
+
+canvas.addEventListener("mouseleave",()=>{
     moveUp=false; moveDown=false;
 });
 
 // ================= RESTART =================
 window.restartGame=function(){
     document.getElementById("winScreen").classList.add("hidden");
+    she.x = canvas.width * 0.15;
     she.y = canvas.height/2;
-    obstacles.forEach((o,i)=> o.x = canvas.width + i*250);
+    createObstacles();
     gameOver=false;
     gameWon=false;
     zoom=1;
