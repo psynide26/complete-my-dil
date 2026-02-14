@@ -6,11 +6,11 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let worldWidth = 3500;
+let worldWidth = 4000;
 let cameraX = 0;
 let previewMode = true;
 
-let player = { x:100, y:canvas.height/2, size:40 };
+let player = { x:120, y:canvas.height/2, size:75 };
 let targetX = player.x;
 let targetY = player.y;
 
@@ -19,34 +19,31 @@ let petals = [];
 let sparkles = [];
 
 const rightHeart = {
-    x: worldWidth - 200,
+    x: worldWidth - 250,
     y: canvas.height/2,
-    size: 45,
-    emotion: "happy"
+    size: 90,
 };
 
 function createPetals(){
     petals=[];
-    for(let i=0;i<60;i++){
+    for(let i=0;i<80;i++){
         petals.push({
             x:Math.random()*worldWidth,
             y:Math.random()*canvas.height,
-            size:3+Math.random()*4,
-            speed:0.3+Math.random()*0.5
+            size:4+Math.random()*6,
+            speed:0.2+Math.random()*0.3
         });
     }
 }
 
 function createObstacles(){
     obstacles=[];
-    for(let i=0;i<14;i++){
+    for(let i=0;i<18;i++){
         obstacles.push({
-            x:Math.random()*(worldWidth-400)+200,
-            y:Math.random()*(canvas.height-80),
-            size:40,
-            type:Math.random()>0.5?"static":"moving",
-            dir:Math.random()>0.5?1:-1,
-            speed:0.8+Math.random()
+            x:Math.random()*(worldWidth-500)+300,
+            y:Math.random()*(canvas.height-200),
+            size:100,
+            type:["rose","chocolate","broken"][Math.floor(Math.random()*3)]
         });
     }
 }
@@ -56,7 +53,7 @@ function createSparkle(){
         x:player.x,
         y:player.y,
         alpha:1,
-        life:40
+        life:25
     });
 }
 
@@ -78,29 +75,31 @@ function drawRightHeart(x,y,size,color){
     ctx.fill();
 }
 
-function drawFace(x,y,size,emotion){
-    ctx.fillStyle="#000";
-    ctx.beginPath();
-    ctx.arc(x,y+size/3,size/8,0,Math.PI*2);
-    ctx.fill();
-
-    if(emotion==="happy"){
+function drawObstacle(o){
+    if(o.type==="rose"){
+        ctx.fillStyle="#8B0000";
         ctx.beginPath();
-        ctx.arc(x,y+size/2,size/3,0,Math.PI);
+        ctx.arc(o.x,o.y,o.size/2,0,Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle="#006400";
+        ctx.lineWidth=4;
+        ctx.beginPath();
+        ctx.moveTo(o.x,o.y);
+        ctx.lineTo(o.x,o.y+o.size);
         ctx.stroke();
     }
-
-    if(emotion==="cry"){
-        ctx.fillStyle="#00f";
-        ctx.beginPath();
-        ctx.arc(x,y+size/1.5,size/10,0,Math.PI*2);
-        ctx.fill();
+    if(o.type==="chocolate"){
+        ctx.fillStyle="#5C3317";
+        ctx.fillRect(o.x-o.size/2,o.y-o.size/2,o.size,o.size);
     }
-
-    if(emotion==="blush"){
+    if(o.type==="broken"){
         ctx.fillStyle="#ff4d88";
         ctx.beginPath();
-        ctx.arc(x,y+size/2,size/6,0,Math.PI*2);
+        ctx.moveTo(o.x,o.y);
+        ctx.lineTo(o.x-40,o.y+60);
+        ctx.lineTo(o.x,o.y+100);
+        ctx.lineTo(o.x+40,o.y+60);
+        ctx.closePath();
         ctx.fill();
     }
 }
@@ -117,24 +116,21 @@ function draw(){
         ctx.fill();
     });
 
-    obstacles.forEach(o=>{
-        drawLeftHeart(o.x,o.y,o.size,"#ff99bb");
-    });
+    obstacles.forEach(drawObstacle);
 
     drawRightHeart(
         rightHeart.x,
-        rightHeart.y + Math.sin(Date.now()/400)*10,
+        rightHeart.y + Math.sin(Date.now()/600)*15,
         rightHeart.size,
         "#ff3366"
     );
-    drawFace(rightHeart.x,rightHeart.y,rightHeart.size,rightHeart.emotion);
 
     drawLeftHeart(player.x,player.y,player.size,"#ff4d88");
 
     sparkles.forEach(s=>{
         ctx.fillStyle="rgba(255,255,255,"+s.alpha+")";
         ctx.beginPath();
-        ctx.arc(s.x,s.y,3,0,Math.PI*2);
+        ctx.arc(s.x,s.y,4,0,Math.PI*2);
         ctx.fill();
     });
 
@@ -144,59 +140,68 @@ function draw(){
 function update(){
 
     if(previewMode){
-        cameraX += 0.6;
+        cameraX += 0.4; // slower intro pan
         return;
     }
 
-    player.x += (targetX-player.x)*0.08;
-    player.y += (targetY-player.y)*0.08;
+    // SLOWER SMOOTH MOVEMENT
+    player.x += (targetX - player.x) * 0.04;
+    player.y += (targetY - player.y) * 0.04;
 
     petals.forEach(p=>{
-        p.x-=p.speed;
-        if(p.x<cameraX) p.x=cameraX+worldWidth;
+        p.x -= p.speed;
+        if(p.x < cameraX) p.x = cameraX + worldWidth;
     });
 
+    // GENTLE FLOATING OBSTACLES
     obstacles.forEach(o=>{
-        if(o.type==="moving"){
-            o.y+=o.dir*o.speed;
-            if(o.y<0||o.y>canvas.height-o.size) o.dir*=-1;
-        }
+        o.y += Math.sin(Date.now()/800 + o.x) * 0.8;
 
-        if(player.x<o.x+o.size &&
-           player.x+player.size>o.x &&
-           player.y<o.y+o.size &&
-           player.y+player.size>o.y){
-            rightHeart.emotion="cry";
-            setTimeout(()=>rightHeart.emotion="happy",1500);
-            resetGame();
+        if(
+            player.x < o.x + o.size/2 &&
+            player.x + player.size > o.x - o.size/2 &&
+            player.y < o.y + o.size/2 &&
+            player.y + player.size > o.y - o.size/2
+        ){
+            showHitScreen();
         }
     });
 
     createSparkle();
     sparkles.forEach((s,i)=>{
         s.life--;
-        s.alpha-=0.02;
+        s.alpha-=0.04;
         if(s.life<=0) sparkles.splice(i,1);
     });
 
-    let desiredCamera=player.x-200;
-    cameraX+=(desiredCamera-cameraX)*0.05;
+    // SLOWER CAMERA FOLLOW
+    let desiredCamera = player.x - 300;
+    cameraX += (desiredCamera - cameraX) * 0.03;
 
-    if(player.x>=rightHeart.x-player.size){
+    if(player.x >= rightHeart.x - player.size){
         winGame();
     }
 }
 
-function resetGame(){
-    player.x=100;
-    player.y=canvas.height/2;
-    cameraX=0;
+function showHitScreen(){
+    previewMode=true;
+    document.getElementById("winScreen").classList.remove("hidden");
+    document.querySelector("#winScreen h2").innerText="Oops! Love Got Distracted 💔";
+    document.querySelector("#winScreen p").innerText="Avoid the temptations and reach your Wifey again!";
 }
 
 function winGame(){
-    rightHeart.emotion="blush";
+    previewMode=true;
     document.getElementById("winScreen").classList.remove("hidden");
-    confetti({particleCount:300,spread:150});
+    document.querySelector("#winScreen h2").innerText="Happy Valentine's Day Wifey ❤️";
+    document.querySelector("#winScreen p").innerText="You complete my heart. Always have. Always will.";
+
+    // SOFT FIREWORK STYLE CONFETTI (doesn't block text)
+    confetti({
+        particleCount:80,
+        spread:60,
+        origin:{y:0.75}
+    });
 }
 
 function loop(){
@@ -228,8 +233,10 @@ canvas.addEventListener("touchmove",e=>{
 
 window.restartGame=function(){
     document.getElementById("winScreen").classList.add("hidden");
-    rightHeart.emotion="happy";
-    resetGame();
+    player.x=120;
+    player.y=canvas.height/2;
+    cameraX=0;
+    previewMode=false;
 };
 
 createPetals();
