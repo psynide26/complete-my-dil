@@ -6,57 +6,56 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let worldWidth = 4000;
-let cameraX = 0;
 let previewMode = true;
+let gameOver = false;
+let gameWon = false;
+let merging = false;
+let zoom = 1;
 
-let player = { x:120, y:canvas.height/2, size:75 };
-let targetX = player.x;
-let targetY = player.y;
+let she = { 
+    x: 120, 
+    y: canvas.height/2, 
+    size: 95 
+};
+
+let you = {
+    x: canvas.width - 250,
+    y: canvas.height/2,
+    size: 110
+};
 
 let obstacles = [];
 let petals = [];
-let sparkles = [];
 
-const rightHeart = {
-    x: worldWidth - 250,
-    y: canvas.height/2,
-    size: 90,
-};
+let speed = 1.4; // slower romantic speed
 
+// 🌸 Petals
 function createPetals(){
     petals=[];
-    for(let i=0;i<80;i++){
+    for(let i=0;i<120;i++){
         petals.push({
-            x:Math.random()*worldWidth,
+            x:Math.random()*canvas.width,
             y:Math.random()*canvas.height,
-            size:4+Math.random()*6,
-            speed:0.2+Math.random()*0.3
+            size:3+Math.random()*6,
+            speed:0.2+Math.random()*0.4
         });
     }
 }
 
+// 🌹 Obstacles
 function createObstacles(){
     obstacles=[];
     for(let i=0;i<18;i++){
         obstacles.push({
-            x:Math.random()*(worldWidth-500)+300,
+            x:400 + i*300,
             y:Math.random()*(canvas.height-200),
-            size:100,
+            size:120,
             type:["rose","chocolate","broken"][Math.floor(Math.random()*3)]
         });
     }
 }
 
-function createSparkle(){
-    sparkles.push({
-        x:player.x,
-        y:player.y,
-        alpha:1,
-        life:25
-    });
-}
-
+// ❤️ Left Heart (SHE)
 function drawLeftHeart(x,y,size,color){
     ctx.fillStyle=color;
     ctx.beginPath();
@@ -66,27 +65,26 @@ function drawLeftHeart(x,y,size,color){
     ctx.fill();
 }
 
-function drawRightHeart(x,y,size,color){
+// ❤️ Right Heart (YOU)
+function drawRightHeart(x,y,size,color,glow=0){
+    ctx.shadowColor="#ff4d88";
+    ctx.shadowBlur=glow;
     ctx.fillStyle=color;
     ctx.beginPath();
     ctx.moveTo(x,y);
     ctx.bezierCurveTo(x+size/2,y-size/2,x+size,y+size/3,x,y+size);
     ctx.lineTo(x,y);
     ctx.fill();
+    ctx.shadowBlur=0;
 }
 
+// 🍫 Obstacles
 function drawObstacle(o){
     if(o.type==="rose"){
         ctx.fillStyle="#8B0000";
         ctx.beginPath();
         ctx.arc(o.x,o.y,o.size/2,0,Math.PI*2);
         ctx.fill();
-        ctx.strokeStyle="#006400";
-        ctx.lineWidth=4;
-        ctx.beginPath();
-        ctx.moveTo(o.x,o.y);
-        ctx.lineTo(o.x,o.y+o.size);
-        ctx.stroke();
     }
     if(o.type==="chocolate"){
         ctx.fillStyle="#5C3317";
@@ -96,21 +94,21 @@ function drawObstacle(o){
         ctx.fillStyle="#ff4d88";
         ctx.beginPath();
         ctx.moveTo(o.x,o.y);
-        ctx.lineTo(o.x-40,o.y+60);
-        ctx.lineTo(o.x,o.y+100);
-        ctx.lineTo(o.x+40,o.y+60);
+        ctx.lineTo(o.x-50,o.y+90);
+        ctx.lineTo(o.x,o.y+130);
+        ctx.lineTo(o.x+50,o.y+90);
         ctx.closePath();
         ctx.fill();
     }
 }
 
 function draw(){
+    ctx.setTransform(zoom,0,0,zoom,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save();
-    ctx.translate(-cameraX,0);
 
+    // petals
     petals.forEach(p=>{
-        ctx.fillStyle="#ffb3c6";
+        ctx.fillStyle="#ffc0cb";
         ctx.beginPath();
         ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
         ctx.fill();
@@ -118,89 +116,87 @@ function draw(){
 
     obstacles.forEach(drawObstacle);
 
+    let distance = you.x - she.x;
+    let glow = Math.max(0, 300 - distance) * 0.4;
+
+    drawLeftHeart(she.x, she.y, she.size, "#ff4d88");
     drawRightHeart(
-        rightHeart.x,
-        rightHeart.y + Math.sin(Date.now()/600)*15,
-        rightHeart.size,
-        "#ff3366"
+        you.x,
+        you.y + Math.sin(Date.now()/700)*10,
+        you.size,
+        "#ff3366",
+        glow
     );
-
-    drawLeftHeart(player.x,player.y,player.size,"#ff4d88");
-
-    sparkles.forEach(s=>{
-        ctx.fillStyle="rgba(255,255,255,"+s.alpha+")";
-        ctx.beginPath();
-        ctx.arc(s.x,s.y,4,0,Math.PI*2);
-        ctx.fill();
-    });
-
-    ctx.restore();
 }
 
 function update(){
 
-    if(previewMode){
-        cameraX += 0.4; // slower intro pan
+    if(previewMode || gameOver) return;
+
+    if(gameWon){
+        if(zoom < 1.8){
+            zoom += 0.003; // cinematic zoom
+        }
         return;
     }
 
-    // SLOWER SMOOTH MOVEMENT
-    player.x += (targetX - player.x) * 0.04;
-    player.y += (targetY - player.y) * 0.04;
+    // SHE MOVES
+    she.x += speed;
 
-    petals.forEach(p=>{
-        p.x -= p.speed;
-        if(p.x < cameraX) p.x = cameraX + worldWidth;
-    });
-
-    // GENTLE FLOATING OBSTACLES
+    // obstacles slight movement
     obstacles.forEach(o=>{
-        o.y += Math.sin(Date.now()/800 + o.x) * 0.8;
+        o.y += Math.sin(Date.now()/800 + o.x) * 0.6;
 
         if(
-            player.x < o.x + o.size/2 &&
-            player.x + player.size > o.x - o.size/2 &&
-            player.y < o.y + o.size/2 &&
-            player.y + player.size > o.y - o.size/2
+            she.x < o.x + o.size/2 &&
+            she.x + she.size > o.x - o.size/2 &&
+            she.y < o.y + o.size/2 &&
+            she.y + she.size > o.y - o.size/2
         ){
             showHitScreen();
         }
     });
 
-    createSparkle();
-    sparkles.forEach((s,i)=>{
-        s.life--;
-        s.alpha-=0.04;
-        if(s.life<=0) sparkles.splice(i,1);
-    });
-
-    // SLOWER CAMERA FOLLOW
-    let desiredCamera = player.x - 300;
-    cameraX += (desiredCamera - cameraX) * 0.03;
-
-    if(player.x >= rightHeart.x - player.size){
-        winGame();
+    if(she.x >= you.x - she.size){
+        startMerge();
     }
 }
 
+function startMerge(){
+    merging = true;
+
+    let mergeInterval = setInterval(()=>{
+        she.x += 2;
+        if(she.x >= you.x){
+            clearInterval(mergeInterval);
+            winGame();
+        }
+    },16);
+}
+
 function showHitScreen(){
-    previewMode=true;
+    gameOver = true;
     document.getElementById("winScreen").classList.remove("hidden");
-    document.querySelector("#winScreen h2").innerText="Oops! Love Got Distracted 💔";
-    document.querySelector("#winScreen p").innerText="Avoid the temptations and reach your Wifey again!";
+    document.querySelector("#winScreen h2").innerText="She Faced Distractions 💔";
+    document.querySelector("#winScreen p").innerText="But she will always find her way back to you.";
 }
 
 function winGame(){
-    previewMode=true;
+    gameWon = true;
     document.getElementById("winScreen").classList.remove("hidden");
-    document.querySelector("#winScreen h2").innerText="Happy Valentine's Day Wifey ❤️";
-    document.querySelector("#winScreen p").innerText="You complete my heart. Always have. Always will.";
+    document.querySelector("#winScreen h2").innerText="Happy Valentine's Day ❤️";
+    document.querySelector("#winScreen p").innerText="She fought through everything… and chose you.";
 
-    // SOFT FIREWORK STYLE CONFETTI (doesn't block text)
+    // soft side fireworks
     confetti({
-        particleCount:80,
+        particleCount:50,
         spread:60,
-        origin:{y:0.75}
+        origin:{x:0,y:0.8}
+    });
+    confetti({
+        particleCount:50,
+        spread:60,
+        origin:{x:1,y:0.8}
     });
 }
 
@@ -216,26 +212,12 @@ document.getElementById("startBtn").onclick=function(){
     document.getElementById("bgMusic").play().catch(()=>{});
 };
 
-canvas.addEventListener("mousemove",e=>{
-    if(!previewMode){
-        targetX=e.clientX+cameraX;
-        targetY=e.clientY;
-    }
-});
-
-canvas.addEventListener("touchmove",e=>{
-    e.preventDefault();
-    if(!previewMode){
-        targetX=e.touches[0].clientX+cameraX;
-        targetY=e.touches[0].clientY;
-    }
-},{passive:false});
-
 window.restartGame=function(){
     document.getElementById("winScreen").classList.add("hidden");
-    player.x=120;
-    player.y=canvas.height/2;
-    cameraX=0;
+    she.x=120;
+    zoom=1;
+    gameOver=false;
+    gameWon=false;
     previewMode=false;
 };
 
