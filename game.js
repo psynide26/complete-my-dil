@@ -3,43 +3,56 @@ window.onload = function(){
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// Mobile-optimized canvas sizing
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+
+// Prevent scrolling on mobile
+document.body.style.overflow = 'hidden';
+document.body.style.position = 'fixed';
+document.body.style.width = '100%';
+document.body.style.height = '100%';
 
 let previewMode = false;
 let gameOver = false;
 let gameWon = false;
 let zoom = 1;
 
+// Scale sizes based on screen size for mobile
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const baseSize = Math.min(canvas.width, canvas.height) * 0.08;
+
 let she = { 
     x: canvas.width * 0.15, 
     y: canvas.height/2, 
-    size: 90 
+    size: baseSize
 };
 
 let you = {
     x: canvas.width * 0.85,
     y: canvas.height/2,
-    size: 110
+    size: baseSize * 1.2
 };
 
 let obstacles = [];
 let petals = [];
 
-let speed = 3; // horizontal movement speed
+let speed = canvas.width * 0.004; // speed relative to screen width
 let moveUp = false;
 let moveDown = false;
+let touchStartY = 0;
 
 // ================= CREATE PETALS =================
 function createPetals(){
     petals=[];
-    for(let i=0;i<120;i++){
+    const petalCount = isMobile ? 60 : 120; // fewer petals on mobile for performance
+    for(let i=0; i<petalCount; i++){
         petals.push({
-            x:Math.random()*canvas.width*2,
+            x:Math.random()*canvas.width,
             y:Math.random()*canvas.height,
-            size:3+Math.random()*5,
-            speed:0.2+Math.random()*0.3,
-            drift: Math.random()*0.5 - 0.25
+            size:2+Math.random()*4,
+            speed:0.3+Math.random()*0.5,
+            drift: Math.random()*0.3 - 0.15
         });
     }
 }
@@ -47,19 +60,20 @@ function createPetals(){
 // ================= CREATE OBSTACLES =================
 function createObstacles(){
     obstacles=[];
-    let gap = 350;
-    let startX = canvas.width * 0.25;
-    let endX = canvas.width * 0.80;
-    let totalDistance = endX - startX;
-    let numObstacles = Math.floor(totalDistance / gap);
+    const gap = canvas.width * 0.35; // gap relative to screen width
+    const startX = canvas.width * 0.25;
+    const endX = canvas.width * 0.78;
+    const totalDistance = endX - startX;
+    const numObstacles = Math.floor(totalDistance / gap);
     
     const emojiList = ["🌹", "🌵", "🍫", "💔", "✨", "🥀", "🔥", "💐"];
+    const obstacleSize = baseSize * 0.9;
     
     for(let i=0; i<numObstacles; i++){
         obstacles.push({
-            x: startX + i * gap + Math.random()*100,
-            y: 100 + Math.random()*(canvas.height-200),
-            size: 70,
+            x: startX + i * gap + Math.random()*(gap*0.3),
+            y: canvas.height * 0.2 + Math.random()*(canvas.height*0.6),
+            size: obstacleSize,
             emoji: emojiList[Math.floor(Math.random()*emojiList.length)]
         });
     }
@@ -108,7 +122,7 @@ function draw(){
 
     // Petals
     petals.forEach(p=>{
-        ctx.fillStyle="rgba(255, 192, 203, 0.7)";
+        ctx.fillStyle="rgba(255, 192, 203, 0.6)";
         ctx.beginPath();
         ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
         ctx.fill();
@@ -119,7 +133,7 @@ function draw(){
 
     // Calculate glow based on distance
     let distance = you.x - she.x;
-    let glow = Math.max(0, 250 - distance) * 0.4;
+    let glow = Math.max(0, 250 - distance) * 0.5;
 
     // Draw hearts
     drawLeftHeart(she.x,she.y,she.size,"#ff4d88");
@@ -133,7 +147,7 @@ function update(){
 
     if(gameWon){
         if(zoom < 1.6){
-            zoom += 0.002; // cinematic zoom
+            zoom += 0.003; // cinematic zoom
         }
         return;
     }
@@ -148,9 +162,10 @@ function update(){
         }
     });
 
-    // Vertical movement for the left heart
-    if(moveUp && she.y > she.size) she.y -= 5;
-    if(moveDown && she.y < canvas.height - she.size) she.y += 5;
+    // Vertical movement for the left heart (smoother on mobile)
+    const moveSpeed = canvas.height * 0.008;
+    if(moveUp && she.y > she.size) she.y -= moveSpeed;
+    if(moveDown && she.y < canvas.height - she.size) she.y += moveSpeed;
 
     // Move the left heart to the right
     if(she.x < you.x - 100){
@@ -163,13 +178,18 @@ function update(){
         let dy = she.y - o.y;
         let dist = Math.sqrt(dx*dx + dy*dy);
 
-        if(dist < she.size/1.5 + o.size/2.5){
+        // More forgiving collision on mobile
+        const collisionRadius = isMobile ? 
+            (she.size/1.8 + o.size/2.8) : 
+            (she.size/1.5 + o.size/2.5);
+
+        if(dist < collisionRadius){
             showRetry();
         }
     });
 
     // Win condition - when she reaches close to him
-    if(she.x >= you.x - 120){
+    if(she.x >= you.x - she.size * 1.3){
         winGame();
     }
 }
@@ -192,15 +212,24 @@ function winGame(){
     // Confetti if available
     if(typeof confetti !== 'undefined'){
         confetti({
-            particleCount:60,
-            spread:70,
-            origin:{x:0,y:0.8}
+            particleCount:80,
+            spread:80,
+            origin:{x:0.5,y:0.6}
         });
-        confetti({
-            particleCount:60,
-            spread:70,
-            origin:{x:1,y:0.8}
-        });
+        setTimeout(()=>{
+            confetti({
+                particleCount:60,
+                spread:70,
+                origin:{x:0.3,y:0.7}
+            });
+        }, 200);
+        setTimeout(()=>{
+            confetti({
+                particleCount:60,
+                spread:70,
+                origin:{x:0.7,y:0.7}
+            });
+        }, 400);
     }
 }
 
@@ -223,46 +252,61 @@ document.getElementById("startBtn").onclick=function(){
 
     setTimeout(()=>{
         previewMode = false;
-    }, 3000);
+    }, 2500);
 };
 
-// ================= CONTROLS =================
-canvas.addEventListener("mousemove",e=>{
+// ================= MOBILE TOUCH CONTROLS =================
+canvas.addEventListener("touchstart", e=>{
+    e.preventDefault();
     if(!previewMode && !gameOver && !gameWon){
-        if(e.clientY < she.y) {
-            moveUp=true; 
-            moveDown=false;
-        } else {
-            moveDown=true; 
-            moveUp=false;
-        }
+        let touch = e.touches[0];
+        touchStartY = touch.clientY;
     }
-});
+}, {passive: false});
 
 canvas.addEventListener("touchmove",e=>{
     e.preventDefault();
     if(!previewMode && !gameOver && !gameWon){
         let touch = e.touches[0];
+        
+        // Move based on touch position relative to heart
         if(touch.clientY < she.y) {
-            moveUp=true; 
-            moveDown=false;
+            moveUp = true; 
+            moveDown = false;
         } else {
-            moveDown=true; 
-            moveUp=false;
+            moveDown = true; 
+            moveUp = false;
         }
     }
 },{passive:false});
 
-document.addEventListener("mouseup",()=>{
-    moveUp=false; moveDown=false;
+canvas.addEventListener("touchend",e=>{
+    e.preventDefault();
+    moveUp = false; 
+    moveDown = false;
+},{passive:false});
+
+// Desktop fallback controls
+canvas.addEventListener("mousemove",e=>{
+    if(!previewMode && !gameOver && !gameWon){
+        if(e.clientY < she.y) {
+            moveUp = true; 
+            moveDown = false;
+        } else {
+            moveDown = true; 
+            moveUp = false;
+        }
+    }
 });
 
-document.addEventListener("touchend",()=>{
-    moveUp=false; moveDown=false;
+document.addEventListener("mouseup",()=>{
+    moveUp = false; 
+    moveDown = false;
 });
 
 canvas.addEventListener("mouseleave",()=>{
-    moveUp=false; moveDown=false;
+    moveUp = false; 
+    moveDown = false;
 });
 
 // ================= RESTART =================
@@ -271,11 +315,33 @@ window.restartGame=function(){
     she.x = canvas.width * 0.15;
     she.y = canvas.height/2;
     createObstacles();
-    gameOver=false;
-    gameWon=false;
-    zoom=1;
-    previewMode=false;
+    gameOver = false;
+    gameWon = false;
+    zoom = 1;
+    previewMode = false;
 };
+
+// ================= WINDOW RESIZE HANDLER =================
+window.addEventListener('resize', ()=>{
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Recalculate positions on resize
+    she.x = canvas.width * 0.15;
+    she.y = canvas.height/2;
+    you.x = canvas.width * 0.85;
+    you.y = canvas.height/2;
+    
+    createObstacles();
+    createPetals();
+});
+
+// Prevent default touch behaviors
+document.addEventListener('touchmove', function(e) {
+    if(e.target === canvas) {
+        e.preventDefault();
+    }
+}, {passive: false});
 
 // ================= INIT =================
 createPetals();
